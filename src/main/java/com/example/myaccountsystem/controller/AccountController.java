@@ -1,8 +1,7 @@
 package com.example.myaccountsystem.controller;
 
-import com.example.myaccountsystem.dto.CreateAccountRequest;
-import com.example.myaccountsystem.dto.CreateAccountResponse;
-import com.example.myaccountsystem.dto.ErrorResponse;
+import com.example.myaccountsystem.dto.*;
+import com.example.myaccountsystem.entity.Account;
 import com.example.myaccountsystem.exception.AccountException;
 import com.example.myaccountsystem.service.AccountService;
 import jakarta.validation.Valid;
@@ -10,6 +9,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,6 +25,34 @@ public class AccountController {
             @RequestBody @Valid CreateAccountRequest request
     ) {
         return ResponseEntity.ok(accountService.createAccount(request));
+    }
+
+    @DeleteMapping
+    public ResponseEntity<UnregisterAccountResponse> unregisterAccount(
+            @RequestBody @Valid UnregisterAccountRequest request
+    ) {
+        return ResponseEntity.ok(accountService.unregisterAccount(request));
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<GetAccountsResponse> getAccounts(
+            @PathVariable String userId
+    ) {
+        List<Account> accounts = accountService.getAccountsByUserId(userId);
+
+        List<GetAccountsResponse.AccountDto> accountDtos = accounts.stream()
+                .map(account -> GetAccountsResponse.AccountDto.builder()
+                        .accountNumber(account.getAccountNumber())
+                        .balance(account.getBalance())
+                        .build())
+                .collect(Collectors.toList());
+
+        GetAccountsResponse response = GetAccountsResponse.builder()
+                .userId(userId)
+                .accounts(accountDtos)
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @ExceptionHandler(AccountException.class)
