@@ -1,9 +1,6 @@
 package com.example.myaccountsystem.service;
 
-import com.example.myaccountsystem.dto.CancelBalanceRequest;
-import com.example.myaccountsystem.dto.CancelBalanceResponse;
-import com.example.myaccountsystem.dto.UseBalanceRequest;
-import com.example.myaccountsystem.dto.UseBalanceResponse;
+import com.example.myaccountsystem.dto.*;
 import com.example.myaccountsystem.entity.Account;
 import com.example.myaccountsystem.entity.Transaction;
 import com.example.myaccountsystem.entity.User;
@@ -18,6 +15,7 @@ import com.example.myaccountsystem.type.TransactionType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.TransactionException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -146,6 +144,20 @@ public class TransactionService {
                 redisLockService.releaseLock(accountNumber);
             }
         }
+    }
+
+    public GetTransactionResponse getTransaction(Long transactionId) {
+        Transaction transaction = transactionRepository.findByTransactionId(transactionId)
+                .orElseThrow(() -> new AccountException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        return GetTransactionResponse.builder()
+                .accountNumber(transaction.getAccount().getAccountNumber())
+                .transactionType(transaction.getTransactionType())
+                .transactionResult(transaction.getTransactionResultType())
+                .transactionId(transaction.getTransactionId())
+                .amount(transaction.getAmount())
+                .transactedAt(transaction.getTransactedAt())
+                .build();
     }
 
     private void validateTransactionAmount(Long amount) {

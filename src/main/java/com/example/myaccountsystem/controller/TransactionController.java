@@ -29,6 +29,13 @@ public class TransactionController {
         return ResponseEntity.ok(transactionService.cancelBalance(request));
     }
 
+    @GetMapping("/{transactionId}")
+    public ResponseEntity<GetTransactionResponse> getTransaction(
+            @PathVariable Long transactionId
+    ) {
+        return ResponseEntity.ok(transactionService.getTransaction(transactionId));
+    }
+
     @ExceptionHandler(AccountException.class)
     public ResponseEntity<ErrorResponse> handleAccountException(AccountException e) {
         ErrorResponse errorResponse = ErrorResponse.builder()

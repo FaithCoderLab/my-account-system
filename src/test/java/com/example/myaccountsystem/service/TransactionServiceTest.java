@@ -1,5 +1,6 @@
 package com.example.myaccountsystem.service;
 
+import com.example.myaccountsystem.dto.GetTransactionResponse;
 import com.example.myaccountsystem.dto.UseBalanceRequest;
 import com.example.myaccountsystem.dto.UseBalanceResponse;
 import com.example.myaccountsystem.entity.Account;
@@ -396,5 +397,63 @@ class TransactionServiceTest {
         verify(redisLockService, times(1)).releaseLock(anyString());
         verify(transactionRepository, never()).save(any(Transaction.class));
         verify(accountRepository, never()).save(any(Account.class));
+    }
+
+    @Test
+    @DisplayName("거래 조회 성공")
+    void getTransaction_Success() {
+        // given
+        User user = User.builder()
+                .userId("testUser")
+                .name("Test User")
+                .build();
+
+        Account account = Account.builder()
+                .accountNumber("1234567890")
+                .user(user)
+                .balance(10000L)
+                .accountStatus(AccountStatus.IN_USE)
+                .build();
+
+        Transaction transaction = Transaction.builder()
+                .transactionId(1L)
+                .transactionType(TransactionType.USE)
+                .transactionResultType(TransactionResultType.SUCCESS)
+                .account(account)
+                .amount(1000L)
+                .balanceSnapshot(9000L)
+                .transactedAt(LocalDateTime.now())
+                .build();
+
+        given(transactionRepository.findByTransactionId(anyLong()))
+                .willReturn(Optional.of(transaction));
+
+        // when
+        GetTransactionResponse response = transactionService.getTransaction(transaction.getTransactionId());
+
+        // then
+        assertEquals("1234567890", response.getAccountNumber());
+        assertEquals(TransactionType.USE, response.getTransactionType());
+        assertEquals(TransactionResultType.SUCCESS, response.getTransactionResult());
+        assertEquals(1L, response.getTransactionId());
+        assertEquals(1000L, response.getAmount());
+        assertNotNull(response.getTransactedAt());
+    }
+
+    @Test
+    @DisplayName("거래 조회 실패 - 거래 없음")
+    void getTransaction_TransactionNotFound() {
+        // given
+        given(transactionRepository.findByTransactionId(anyLong()))
+                .willReturn(Optional.empty());
+
+        // when
+        AccountException exception = assertThrows(
+                AccountException.class,
+                () -> transactionService.getTransaction(1L)
+        );
+
+        // then
+        assertEquals(ErrorCode.TRANSACTION_NOT_FOUND, exception.getErrorCode());
     }
 }
