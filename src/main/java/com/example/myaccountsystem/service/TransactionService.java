@@ -1,5 +1,7 @@
 package com.example.myaccountsystem.service;
 
+import com.example.myaccountsystem.dto.CancelBalanceRequest;
+import com.example.myaccountsystem.dto.CancelBalanceResponse;
 import com.example.myaccountsystem.dto.UseBalanceRequest;
 import com.example.myaccountsystem.dto.UseBalanceResponse;
 import com.example.myaccountsystem.entity.Account;
@@ -67,7 +69,7 @@ public class TransactionService {
 
             Transaction transaction = saveTransaction(
                     account,
-                    request.getAmount()
+                    TransactionType.USE, request.getAmount()
             );
 
             account.setBalance(account.getBalance() - request.getAmount());
@@ -90,6 +92,62 @@ public class TransactionService {
         }
     }
 
+    @Transactional
+    public CancelBalanceResponse cancelBalance(CancelBalanceRequest request) {
+        String accountNumber = request.getAccountNumber();
+        boolean isLockAcquired = false;
+
+        try {
+            isLockAcquired = redisLockService.acquireLock(accountNumber, ACCOUNT_LOCK_TIMEOUT);
+
+            if (!isLockAcquired) {
+                throw new AccountException(ErrorCode.ACCOUNT_TRANSACTION_LOCK);
+            }
+
+            Transaction transaction = transactionRepository.findByTransactionId(request.getTransactionId())
+                    .orElseThrow(() -> new AccountException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+            Account account = accountRepository.findByAccountNumberWithPessimisticLock(request.getAccountNumber())
+                    .orElseThrow(() -> new AccountException(ErrorCode.ACCOUNT_NOT_FOUND));
+
+            if (!transaction.getAccount().getAccountNumber().equals(account.getAccountNumber())) {
+                throw new AccountException(ErrorCode.TRANSACTION_ACCOUNT_MISMATCH);
+            }
+
+            if (!transaction.getAmount().equals(request.getAmount())) {
+                throw new AccountException(ErrorCode.CANCEL_MUST_FULLY);
+            }
+
+            if (transaction.getTransactionType() != TransactionType.USE) {
+                throw new AccountException(ErrorCode.TRANSACTION_ALREADY_CANCELED);
+            }
+
+            account.setBalance(account.getBalance() + transaction.getAmount());
+            accountRepository.save(account);
+
+            Transaction cancelTransaction = saveTransaction(
+                    account,
+                    TransactionType.CANCEL,
+                    transaction.getAmount()
+            );
+
+            return CancelBalanceResponse.builder()
+                    .accountNumber(account.getAccountNumber())
+                    .transactionResult(TransactionResultType.SUCCESS)
+                    .transactionId(cancelTransaction.getTransactionId())
+                    .amount(cancelTransaction.getAmount())
+                    .transactedAt(cancelTransaction.getTransactedAt())
+                    .build();
+        } catch (AccountException e) {
+            log.error("Failed to cancel balance: {}", e.getMessage());
+            throw e;
+        } finally {
+            if (isLockAcquired) {
+                redisLockService.releaseLock(accountNumber);
+            }
+        }
+    }
+
     private void validateTransactionAmount(Long amount) {
         if (amount < MIN_TRANSACTION_AMOUNT) {
             throw new AccountException(ErrorCode.TOO_SMALL_AMOUNT);
@@ -102,10 +160,10 @@ public class TransactionService {
 
     private Transaction saveTransaction(
             Account account,
-            Long amount
+            TransactionType transactionType, Long amount
     ) {
         Transaction transaction = Transaction.builder()
-                .transactionType(TransactionType.USE)
+                .transactionType(transactionType)
                 .transactionResultType(TransactionResultType.SUCCESS)
                 .account(account)
                 .amount(amount)

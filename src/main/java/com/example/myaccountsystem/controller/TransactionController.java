@@ -1,8 +1,6 @@
 package com.example.myaccountsystem.controller;
 
-import com.example.myaccountsystem.dto.ErrorResponse;
-import com.example.myaccountsystem.dto.UseBalanceRequest;
-import com.example.myaccountsystem.dto.UseBalanceResponse;
+import com.example.myaccountsystem.dto.*;
 import com.example.myaccountsystem.exception.AccountException;
 import com.example.myaccountsystem.service.TransactionService;
 import jakarta.validation.Valid;
@@ -22,6 +20,13 @@ public class TransactionController {
             @RequestBody @Valid UseBalanceRequest request
     ) {
         return ResponseEntity.ok(transactionService.useBalance(request));
+    }
+
+    @PostMapping("/cancel")
+    public ResponseEntity<CancelBalanceResponse> cancelBalance(
+            @RequestBody @Valid CancelBalanceRequest request
+    ) {
+        return ResponseEntity.ok(transactionService.cancelBalance(request));
     }
 
     @ExceptionHandler(AccountException.class)
